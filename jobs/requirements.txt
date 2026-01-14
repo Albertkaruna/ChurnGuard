@@ -1,0 +1,6 @@
+mlflow==3.8.0
+pandas
+numpy
+scikit-learn
+boto3
+psycopg2-binary
