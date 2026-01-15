@@ -1,5 +1,5 @@
-from airflow import DAG
-from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+from airflow.sdk import dag, task
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
 from datetime import datetime, timedelta
 
 default_args = {
@@ -12,34 +12,29 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-with DAG(
+@dag(
     'churn_prediction_training',
     default_args=default_args,
     description='Train churn model on Kubernetes',
-    schedule_interval=None,
+    schedule=None,
     catchup=False,
     tags=['mlops', 'churn'],
-) as dag:
+)
+def churn_training_dag():
 
-    train_model = KubernetesPodOperator(
-        task_id='train_model',
-        name='churn-train-pod',
-        namespace='default',
-        image='churn-train:latest',
-        image_pull_policy='Never',
-        cmds=["python", "train.py"],
-        env_vars={
-            'MLFLOW_TRACKING_URI': 'http://host.docker.internal:5000',
-            'AWS_ACCESS_KEY_ID': 'minioadmin',
-            'AWS_SECRET_ACCESS_KEY': 'minioadmin123',
-            'MLFLOW_S3_ENDPOINT_URL': 'http://host.docker.internal:9000',
-        },
-        # Network configuration
-        hostnetwork=False,
-        # Allow access to host machine
-        dns_policy='ClusterFirstWithHostNet',
-        config_file='/home/airflow/.kube/config',
-        in_cluster=False,
-        is_delete_operator_pod=False, # Keep pod for debugging
-        get_logs=True,
-    )
+    @task()
+    def k82_pod_operator():
+        print("Starting churn model training DAG")
+        churn_training = KubernetesPodOperator(
+            namespace='mlops',
+            image='churn-model-trainer:latest',
+            cmds=['python', 'train_churn_model.py'],
+            name='churn-model-training-pod',
+            task_id='churn_model_training_task',
+            get_logs=True,
+            is_delete_operator_pod=True,
+        )
+    k82_pod_operator()
+
+churn_training_dag()
+    
