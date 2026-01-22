@@ -1,0 +1,31 @@
+postgresql:
+  image:
+    tag: latest
+postgres-exporter:
+  image:
+    tag: latest
+os-shell:
+  image:
+    tag: latest
+
+# 1. Define the volume (Source is the path inside the Kind Node)
+extraVolumes:
+  - name: my-local-dags
+    hostPath:
+      path: /mnt/dags
+      type: Directory
+
+# 2. Mount it to where Airflow expects DAGs
+extraVolumeMounts:
+  - name: my-local-dags
+    mountPath: /opt/airflow/dags
+
+# 3. Expose the UI via NodePort 30000
+webserver:
+  service:
+    type: NodePort
+    ports:
+      - name: airflow-ui
+        port: 8080
+        targetPort: 8080
+        nodePort: 30000  # <--- This matches the containerPort in Kind config

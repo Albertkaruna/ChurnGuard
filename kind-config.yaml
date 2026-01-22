@@ -2,25 +2,16 @@ kind: Cluster
 apiVersion: kind.x-k8s.io/v1alpha4
 name: churnguard
 nodes:
-  # Control plane node - manages the cluster
-  - role: control-plane
-    extraPortMappings:
-      # ArgoCD UI
-      - containerPort: 30080
-        hostPort: 30080
-        protocol: TCP
-      # Prometheus UI
-      - containerPort: 30090
-        hostPort: 30090
-        protocol: TCP
-      # Grafana UI
-      - containerPort: 30030
-        hostPort: 30030
-        protocol: TCP
-      # FastAPI Service
-      - containerPort: 30001
-        hostPort: 30001
-        protocol: TCP
-  
-  # Worker nodes - run your workloads
-  - role: worker
+- role: control-plane
+  extraPortMappings:
+    # 1. Airflow UI (Local 8080 -> Node 30000)
+    - containerPort: 30000
+      hostPort: 8080
+      protocol: TCP
+    # 2. MLflow UI (Local 5000 -> Node 30001)
+    - containerPort: 30001
+      hostPort: 5000
+      protocol: TCP
+  extraMounts:
+    - hostPath: /home/pcm_user/projects/ChurnGuard/airflow/dags
+      containerPath: /mnt/dags

@@ -1,0 +1,35 @@
+# mlflow_values.yaml for Bitnami Chart
+
+# 1. Image and Auth Settings
+auth:
+  enabled: false  # Disable login for easier local learning
+
+# 2. Networking (The Bridge)
+service:
+  type: NodePort
+  nodePorts:
+    http: 30001   # <--- Matches 'containerPort' in your Kind config
+  ports:
+    http: 5000    # The internal port MLflow listens on
+
+# 3. Backend Storage (MinIO = S3 Compatible)
+minio:
+  enabled: true
+  # We fix the credentials so they are easy to remember for your Airflow connection
+  auth:
+    rootUser: "admin"
+    rootPassword: "password"
+  # Standard service setup for MinIO
+  service:
+    type: ClusterIP
+    ports:
+      api: 9000
+
+# 4. Database (PostgreSQL)
+postgresql:
+  enabled: true
+  auth:
+    postgresPassword: "password"
+    username: "bn_mlflow"
+    password: "password"
+    database: "bitnami_mlflow"
