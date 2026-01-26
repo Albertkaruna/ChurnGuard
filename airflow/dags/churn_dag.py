@@ -14,6 +14,13 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
+env_vars={
+    'MLFLOW_TRACKING_URI': 'http://10.96.84.133:80',
+    'MLFLOW_TRACKING_USERNAME': 'user',  # Add this
+    'MLFLOW_TRACKING_PASSWORD': 'S5z2iGZPKjmJ',  # Add this
+    'MLFLOW_EXPERIMENT_NAME': 'churn-prediction',
+}
+
 # Define the DAG
 with DAG(
     'ml_training_dag',
@@ -32,7 +39,7 @@ with DAG(
         cmds=['python', '-c'],
         arguments=['print("Hello from Kubernetes Pod!")'],
         get_logs=True,
-        on_finish_action='keep_pod',
+        on_finish_action='delete_pod',
         in_cluster=True
     )
 
@@ -40,16 +47,13 @@ with DAG(
     train_model = KubernetesPodOperator(
         task_id='train_ml_model',
         name='ml-training-pod',
-        namespace='default',
+        namespace='airflow',
         image='churnguard-trainer:latest',  # Your ML image
         get_logs=True,
         on_finish_action='keep_pod',
         in_cluster=True,
-        # Important for ML workloads - set proper resources
-        container_resources=k8s.V1ResourceRequirements(
-            requests={'memory': '2Gi', 'cpu': '1000m'},
-            limits={'memory': '4Gi', 'cpu': '2000m'},
-        ),
+        image_pull_policy='Never',
+        env_vars=env_vars
     )
 
     # Task dependency

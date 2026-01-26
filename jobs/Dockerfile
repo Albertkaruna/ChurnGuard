@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy training script
-COPY test.py .
+COPY train.py .
 
 # Default command
-CMD ["python", "test.py"]
+CMD ["python", "train.py"]

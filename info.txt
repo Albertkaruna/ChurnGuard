@@ -43,4 +43,4 @@ helm upgrade --install airflow apache-airflow/airflow --namespace airflow --crea
 
 # helm delete airflow --namespace airflow
 
-helm upgrade --install mlflow oci://registry-1.docker.io/bitnamicharts/mlflow --namespace mlflow --create-namespace --values mlflow-values.yaml
+helm upgrade --install mlflow oci://registry-1.docker.io/bitnamicharts/mlflow --namespace mlflow --create-namespace --values mlflow-bitnami-values.yaml
