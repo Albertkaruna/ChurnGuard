@@ -1,0 +1,34 @@
+image:
+  repository: ghcr.io/mlflow/mlflow
+  tag: latest
+  pullPolicy: IfNotPresent
+
+backendStore:
+  databaseMigration: true
+  postgres:
+    enabled: false
+
+artifactRoot:
+  s3:
+    enabled: true
+    bucket: mlflow
+    awsAccessKeyId: minioadmin
+    awsSecretAccessKey: minioadmin
+
+extraEnvVars:
+  MLFLOW_S3_ENDPOINT_URL: http://minio:9000
+
+postgresql:
+  image:
+    tag: latest
+  auth:
+    username: mlflow
+    password: mlflow123
+    database: mlflow
+  primary:
+    persistence:
+      enabled: true
+      size: 8Gi
+
+serviceMonitor:
+  enabled: true

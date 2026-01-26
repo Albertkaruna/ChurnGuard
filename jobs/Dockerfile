@@ -1,4 +1,4 @@
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 WORKDIR /app
 
@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Copy training script
-COPY train.py .
+COPY test.py .
 
 # Default command
-CMD ["python", "train.py"]
+CMD ["python", "test.py"]

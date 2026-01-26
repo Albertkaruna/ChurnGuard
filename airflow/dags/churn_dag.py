@@ -1,45 +1,56 @@
-from airflow import DAG
-from airflow.providers.cncf.kubernetes.operators.kubernetes_pod import KubernetesPodOperator
+"""
+Simple Airflow DAG - ML Model Training with KubernetesPodOperator
+"""
 from datetime import datetime, timedelta
+from airflow import DAG
+from airflow.providers.cncf.kubernetes.operators.pod import KubernetesPodOperator
+from kubernetes.client import models as k8s
 
+# Default arguments
 default_args = {
-    'owner': 'mlops',
-    'depends_on_past': False,
+    'owner': 'airflow',
     'start_date': datetime(2024, 1, 1),
-    'email_on_failure': False,
-    'email_on_retry': False,
     'retries': 1,
     'retry_delay': timedelta(minutes=5),
 }
 
+# Define the DAG
 with DAG(
-    'churn_prediction_training',
+    'ml_training_dag',
     default_args=default_args,
-    description='Train churn model on Kubernetes',
-    schedule_interval=None,
+    description='Train ML model in Kubernetes',
+    schedule='@daily',
     catchup=False,
-    tags=['mlops', 'churn'],
 ) as dag:
 
-    train_model = KubernetesPodOperator(
-        task_id='train_model',
-        name='churn-train-pod',
-        namespace='default',
-        image='churn-train:latest',
-        image_pull_policy='Never',
-        cmds=["python", "train.py"],
-        env_vars={
-            'MLFLOW_TRACKING_URI': 'http://host.docker.internal:5000',
-            'AWS_ACCESS_KEY_ID': 'minioadmin',
-            'AWS_SECRET_ACCESS_KEY': 'minioadmin123',
-            'MLFLOW_S3_ENDPOINT_URL': 'http://host.docker.internal:9000',
-        },
-        # Network configuration
-        hostnetwork=False,
-        # Allow access to host machine
-        dns_policy='ClusterFirstWithHostNet',
-        config_file='/home/airflow/.kube/config',
-        in_cluster=False,
-        is_delete_operator_pod=False, # Keep pod for debugging
+    # Hello World - Test task
+    hello_world = KubernetesPodOperator(
+        task_id='kubernetes_task',
+        name='my-pod',
+        namespace='airflow',
+        image='python:3.11-slim',
+        cmds=['python', '-c'],
+        arguments=['print("Hello from Kubernetes Pod!")'],
         get_logs=True,
+        on_finish_action='keep_pod',
+        in_cluster=True
     )
+
+    # ML Model Training - Using custom Docker image (RECOMMENDED)
+    train_model = KubernetesPodOperator(
+        task_id='train_ml_model',
+        name='ml-training-pod',
+        namespace='default',
+        image='churnguard-trainer:latest',  # Your ML image
+        get_logs=True,
+        on_finish_action='keep_pod',
+        in_cluster=True,
+        # Important for ML workloads - set proper resources
+        container_resources=k8s.V1ResourceRequirements(
+            requests={'memory': '2Gi', 'cpu': '1000m'},
+            limits={'memory': '4Gi', 'cpu': '2000m'},
+        ),
+    )
+
+    # Task dependency
+    hello_world >> train_model

@@ -1,31 +1,93 @@
+airflow:
+  image:
+    tag: latest-python3.12
+
 postgresql:
   image:
     tag: latest
-postgres-exporter:
-  image:
-    tag: latest
-os-shell:
-  image:
-    tag: latest
 
-# 1. Define the volume (Source is the path inside the Kind Node)
+webserverSecretKeySecretName: my-webserver-secret
+
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: false
+
+extraPipPackages:
+  - "apache-airflow-providers-cncf-kubernetes>=8.0.0"
+
 extraVolumes:
-  - name: my-local-dags
+  - name: dags-volume
     hostPath:
       path: /mnt/dags
-      type: Directory
+      type: DirectoryOrCreate
 
-# 2. Mount it to where Airflow expects DAGs
 extraVolumeMounts:
-  - name: my-local-dags
+  - name: dags-volume
     mountPath: /opt/airflow/dags
+    readOnly: false
 
-# 3. Expose the UI via NodePort 30000
-webserver:
-  service:
-    type: NodePort
-    ports:
-      - name: airflow-ui
-        port: 8080
-        targetPort: 8080
-        nodePort: 30000  # <--- This matches the containerPort in Kind config
+dagProcessor:
+  enabled: true
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+apiServer:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+scheduler:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+workers:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+triggerer:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+config:
+  core:
+    dags_folder: /opt/airflow/dags
+    load_examples: false
+  scheduler:
+    standalone_dag_processor: true
+    dag_dir_list_interval: 30
