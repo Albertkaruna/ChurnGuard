@@ -18,12 +18,12 @@ def train_model():
     
     # Set MLflow tracking URI - using Kubernetes service DNS
     # Format: http://<service-name>.<namespace>.svc.cluster.local:<port>
-    mlflow_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://10.96.84.133:80:80') # http://service_name.namespace_name.svc.cluster.local:PORT
+    mlflow_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://10.96.147.205:80') # http://service_name.namespace_name.svc.cluster.local:PORT
     mlflow.set_tracking_uri(mlflow_uri)
     print(f"MLflow tracking URI: {mlflow_uri}")
     
     os.environ['MLFLOW_TRACKING_USERNAME'] = "user"
-    os.environ['MLFLOW_TRACKING_PASSWORD'] = "S5z2iGZPKjmJ"
+    os.environ['MLFLOW_TRACKING_PASSWORD'] = "JWu4h4SK0BNW"
 
     # Set experiment name
     experiment_name = os.getenv('MLFLOW_EXPERIMENT_NAME', 'churn-prediction')

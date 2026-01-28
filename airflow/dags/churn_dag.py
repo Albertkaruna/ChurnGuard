@@ -14,12 +14,12 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-env_vars={
-    'MLFLOW_TRACKING_URI': 'http://10.96.84.133:80',
-    'MLFLOW_TRACKING_USERNAME': 'user',  # Add this
-    'MLFLOW_TRACKING_PASSWORD': 'S5z2iGZPKjmJ',  # Add this
-    'MLFLOW_EXPERIMENT_NAME': 'churn-prediction',
-}
+# env_vars={
+#     'MLFLOW_TRACKING_URI': 'http://10.96.250.23:80',
+#     'MLFLOW_TRACKING_USERNAME': 'user',  # Add this
+#     'MLFLOW_TRACKING_PASSWORD': 'JWu4h4SK0BNW',  # Add this
+#     'MLFLOW_EXPERIMENT_NAME': 'churn-prediction',
+# }
 
 # Define the DAG
 with DAG(
@@ -52,8 +52,7 @@ with DAG(
         get_logs=True,
         on_finish_action='keep_pod',
         in_cluster=True,
-        image_pull_policy='Never',
-        env_vars=env_vars
+        image_pull_policy='Never'
     )
 
     # Task dependency

@@ -1,77 +1,108 @@
-# MLflow Helm Chart Values - Fixed for Kind Cluster
-# Includes latest images and proper imagePullPolicy settings
+  # MLflow Helm Chart Values - Fixed for Kind Cluster
+  # Includes latest images and proper imagePullPolicy settings
 
-replicaCount: 1
+  replicaCount: 1
 
-# Global image configuration - applies to all images including init containers
-global:
-  imageRegistry: public.ecr.aws
-  imagePullSecrets: []
+  # Global image configuration - applies to all images including init containers
+  global:
+    imageRegistry: public.ecr.aws
+    imagePullSecrets: []
 
-# MLflow Tracking Server Image
-image:
-  registry: public.ecr.aws
-  repository: bitnami/mlflow
-  tag: latest  # Use latest available version
-  pullPolicy: IfNotPresent  # Critical for Kind - avoids unnecessary pulls
-  pullSecrets: []
-
-# Authentication - Disabled for local development
-auth:
-  enabled: false
-
-# Service Configuration
-service:
-  type: NodePort
-  nodePorts:
-    http: 30001  # Matches Kind config
-  ports:
-    http: 5000
-
-# Backend Store Configuration
-backendStore:
-  postgres:
-    enabled: true
-    host: mlflow-postgresql
-    port: 5432
-    database: bitnami_mlflow
-    user: bn_mlflow
-    password: password
-
-# Artifact Storage Configuration
-artifactRoot:
-  s3:
-    enabled: true
-    bucket: mlflow
-    awsAccessKeyId: admin
-    awsSecretAccessKey: password
-
-# Environment Variables
-extraEnvVars:
-  - name: MLFLOW_S3_ENDPOINT_URL
-    value: "http://mlflow-minio:9000"
-  - name: AWS_ACCESS_KEY_ID
-    value: "admin"
-  - name: AWS_SECRET_ACCESS_KEY
-    value: "password"
-
-# PostgreSQL Configuration (subchart)
-postgresql:
-  enabled: true
+  # MLflow Tracking Server Image
   image:
     registry: public.ecr.aws
-    repository: bitnami/postgresql
+    repository: bitnami/mlflow
     tag: latest  # Use latest available version
-    pullPolicy: IfNotPresent
+    pullPolicy: IfNotPresent  # Critical for Kind - avoids unnecessary pulls
+    pullSecrets: []
+
+  # Authentication - Disabled for local development
   auth:
-    postgresPassword: password
-    username: bn_mlflow
-    password: password
-    database: bitnami_mlflow
-  primary:
+    enabled: false
+
+  # Service Configuration
+  service:
+    type: NodePort
+    nodePorts:
+      http: 30001  # Matches Kind config
+    ports:
+      http: 5000
+
+  # Backend Store Configuration
+  backendStore:
+    postgres:
+      enabled: true
+      host: mlflow-postgresql
+      port: 5432
+      database: bitnami_mlflow
+      user: bn_mlflow
+      password: password
+
+  # Artifact Storage Configuration
+  artifactRoot:
+    s3:
+      enabled: true
+      bucket: mlflow
+      awsAccessKeyId: admin
+      awsSecretAccessKey: password
+
+  # Environment Variables
+  extraEnvVars:
+    - name: MLFLOW_S3_ENDPOINT_URL
+      value: "http://mlflow-minio:9000"
+    - name: AWS_ACCESS_KEY_ID
+      value: "admin"
+    - name: AWS_SECRET_ACCESS_KEY
+      value: "password"
+
+  # PostgreSQL Configuration (subchart)
+  postgresql:
+    enabled: true
+    image:
+      registry: public.ecr.aws
+      repository: bitnami/postgresql
+      tag: latest  # Use latest available version
+      pullPolicy: IfNotPresent
+    auth:
+      postgresPassword: password
+      username: bn_mlflow
+      password: password
+      database: bitnami_mlflow
+    primary:
+      persistence:
+        enabled: true
+        size: 8Gi
+      resources:
+        requests:
+          cpu: 250m
+          memory: 256Mi
+        limits:
+          cpu: 500m
+          memory: 512Mi
+
+  # MinIO Configuration (subchart)
+  minio:
+    enabled: true
+    image:
+      registry: public.ecr.aws
+      repository: bitnami/minio
+      tag: latest  # Use latest available version
+      pullPolicy: IfNotPresent
+    auth:
+      rootUser: admin
+      rootPassword: password
+    defaultBuckets: "mlflow"
     persistence:
       enabled: true
-      size: 8Gi
+      size: 10Gi
+    service:
+      type: NodePort
+      ports:
+        api: 9000
+        console: 9001
+      nodePorts:
+        api: 31000
+        console: 31001
     resources:
       requests:
         cpu: 250m
@@ -80,53 +111,25 @@ postgresql:
         cpu: 500m
         memory: 512Mi
 
-# MinIO Configuration (subchart)
-minio:
-  enabled: true
-  image:
-    registry: public.ecr.aws
-    repository: bitnami/minio
-    tag: latest  # Use latest available version
-    pullPolicy: IfNotPresent
-  auth:
-    rootUser: admin
-    rootPassword: password
-  defaultBuckets: "mlflow"
-  persistence:
-    enabled: true
-    size: 10Gi
-  service:
-    type: ClusterIP
-    ports:
-      api: 9000
-      console: 9001
+  # Resource limits for MLflow tracking server
   resources:
     requests:
       cpu: 250m
       memory: 256Mi
     limits:
-      cpu: 500m
-      memory: 512Mi
+      cpu: 1000m
+      memory: 1Gi
 
-# Resource limits for MLflow tracking server
-resources:
-  requests:
-    cpu: 250m
-    memory: 256Mi
-  limits:
-    cpu: 1000m
-    memory: 1Gi
+  # Service Account
+  serviceAccount:
+    create: true
+    annotations: {}
+    name: ""
 
-# Service Account
-serviceAccount:
-  create: true
-  annotations: {}
-  name: ""
+  # Ingress - disabled for local development
+  ingress:
+    enabled: false
 
-# Ingress - disabled for local development
-ingress:
-  enabled: false
-
-# Service Monitor for Prometheus (optional)
-serviceMonitor:
-  enabled: false  # Set to true if you have Prometheus installed
+  # Service Monitor for Prometheus (optional)
+  serviceMonitor:
+    enabled: false  # Set to true if you have Prometheus installed
