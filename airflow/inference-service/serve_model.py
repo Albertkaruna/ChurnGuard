@@ -4,8 +4,8 @@ from typing import List, Dict, Any, Optional
 from contextlib import asynccontextmanager
 
 import mlflow
-import numpy as np
-from fastapi import FastAPI, HTTPException, status
+import pandas as pd
+from fastapi import Body, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
 
 # Configure logging
@@ -16,28 +16,53 @@ logger = logging.getLogger(__name__)
 model = None
 model_info = {}
 
+# ID patterns to exclude from features
+ID_PATTERNS = ["id", "customer", "customername", "name", "customerid"]
+
+
+def _normalize_input_keys(d: dict) -> dict:
+    """Normalize keys to lowercase with underscores."""
+    return {str(k).lower().strip().replace(" ", "_"): v for k, v in d.items()}
+
+
+def _input_dict_to_features(d: dict) -> dict:
+    """Build feature dict for model: normalize keys, drop churn/ID, handle missing values."""
+    normalized = _normalize_input_keys(d)
+    # Drop target and ID-like columns if present; fill None for model
+    numeric_keys = {"age", "tenure", "usage_frequency", "support_calls", "payment_delay", 
+                    "total_spend", "last_interaction"}
+    out = {}
+    for k, v in normalized.items():
+        if k == "churn":
+            continue
+        if any(p in k for p in ID_PATTERNS):
+            continue
+        if v is None or (isinstance(v, float) and pd.isna(v)):
+            out[k] = 0.0 if k in numeric_keys else "Unknown"
+        else:
+            out[k] = v
+    return out
+
 
 class PredictionInput(BaseModel):
-    """Input schema for single prediction - 20 features as list"""
-    features: List[float] = Field(
-        ...,
-        example=[0.5, -1.2, 0.8, -0.3, 1.5, 0.2, -0.7, 0.9, -0.4, 1.1,
-                 0.6, -0.9, 0.3, -1.0, 0.7, 0.1, -0.5, 0.4, -0.8, 1.3],
-        description="List of 20 numeric features"
-    )
+    """Input schema for single prediction - customer features"""
+    age: float = Field(..., example=35, description="Customer age")
+    gender: str = Field(..., example="Male", description="Gender")
+    tenure: float = Field(..., example=24, description="Months with company")
+    usage_frequency: float = Field(..., example=15, description="Usage frequency")
+    support_calls: float = Field(..., example=3, description="Number of support calls")
+    payment_delay: float = Field(..., example=10, description="Payment delay in days")
+    subscription_type: str = Field(..., example="Premium", description="Subscription type")
+    contract_length: str = Field(..., example="Annual", description="Contract length")
+    total_spend: float = Field(..., example=500.0, description="Total spend")
+    last_interaction: float = Field(..., example=5, description="Days since last interaction")
 
 
 class BatchPredictionInput(BaseModel):
-    """Input schema for batch predictions - list of feature lists"""
-    instances: List[List[float]] = Field(
+    """Input schema for batch predictions"""
+    instances: List[PredictionInput] = Field(
         ...,
-        example=[
-            [0.5, -1.2, 0.8, -0.3, 1.5, 0.2, -0.7, 0.9, -0.4, 1.1,
-             0.6, -0.9, 0.3, -1.0, 0.7, 0.1, -0.5, 0.4, -0.8, 1.3],
-            [-0.5, 1.2, -0.8, 0.3, -1.5, -0.2, 0.7, -0.9, 0.4, -1.1,
-             -0.6, 0.9, -0.3, 1.0, -0.7, -0.1, 0.5, -0.4, 0.8, -1.3]
-        ],
-        description="List of instances, each with 20 numeric features"
+        description="List of customer records for batch prediction"
     )
 
 
@@ -104,8 +129,14 @@ async def lifespan(app: FastAPI):
         model_uri = mv.source
         logger.info(f"Loading model from source: {model_uri}")
         
-        # Load the model
-        model = mlflow.pyfunc.load_model(model_uri)
+        # Load the model as sklearn to get predict_proba support
+        try:
+            model = mlflow.sklearn.load_model(model_uri)
+            logger.info("Model loaded as sklearn model (with predict_proba support)")
+        except Exception as sklearn_error:
+            logger.warning(f"Failed to load as sklearn model: {sklearn_error}")
+            logger.info("Falling back to pyfunc model (no predict_proba)")
+            model = mlflow.pyfunc.load_model(model_uri)
         
         model_info = {
             "name": model_name,
@@ -182,14 +213,9 @@ async def get_model_info():
 @app.post("/predict", response_model=PredictionOutput, tags=["Prediction"])
 async def predict(input_data: PredictionInput):
     """
-    Make a single prediction
+    Make a single customer churn prediction
     
-    Expected input format:
-    {
-        "features": [0.5, -1.2, 0.8, -0.3, 1.5, 0.2, -0.7, 0.9, -0.4, 1.1,
-                     0.6, -0.9, 0.3, -1.0, 0.7, 0.1, -0.5, 0.4, -0.8, 1.3]
-    }
-    (20 numeric features)
+    Expected input: Customer features (age, gender, tenure, contract, etc.)
     """
     if model is None:
         raise HTTPException(
@@ -198,31 +224,35 @@ async def predict(input_data: PredictionInput):
         )
     
     try:
-        # Validate feature count
-        if len(input_data.features) != 20:
-            raise HTTPException(
-                status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Expected 20 features, got {len(input_data.features)}"
-            )
-        
-        # Convert input to numpy array with proper shape
-        input_array = np.array([input_data.features])
+        # Convert input to feature dict (normalizes keys, drops churn/ID, adds engineered features)
+        input_dict = _input_dict_to_features(input_data.dict())
+        # Ensure all numeric columns are float for MLflow compatibility
+        for k, v in input_dict.items():
+            if isinstance(v, (int, float)):
+                input_dict[k] = float(v)
+        df = pd.DataFrame([input_dict])
         
         # Make prediction
-        prediction = model.predict(input_array)
+        prediction = model.predict(df)
         
-        # Handle different prediction formats
-        if hasattr(prediction, '__iter__') and not isinstance(prediction, str):
-            churn_prob = float(prediction[0])
+        # Try to get probability if available (unwrap MLflow model if needed)
+        churn_prob = 0.5  # default
+        if hasattr(model, 'predict_proba'):
+            prediction_proba = model.predict_proba(df)
+            churn_prob = float(prediction_proba[0][1])
+        elif hasattr(model, '_model_impl') and hasattr(model._model_impl, 'predict_proba'):
+            # MLflow wrapped model - access underlying model
+            prediction_proba = model._model_impl.predict_proba(df)
+            churn_prob = float(prediction_proba[0][1])
         else:
-            churn_prob = float(prediction)
+            # No probability available, use prediction as confidence
+            churn_prob = float(prediction[0])
         
-        # Ensure probability is between 0 and 1
-        churn_prob = max(0.0, min(1.0, churn_prob))
+        will_churn = bool(prediction[0])
         
         return PredictionOutput(
             churn_probability=churn_prob,
-            will_churn=churn_prob > 0.5,
+            will_churn=will_churn,
             model_version=model_info.get("version", "unknown")
         )
         
@@ -234,18 +264,57 @@ async def predict(input_data: PredictionInput):
         )
 
 
+@app.post("/predict/from-record", response_model=PredictionOutput, tags=["Prediction"])
+async def predict_from_record(record: Dict[str, Any] = Body(..., embed=False)):
+    """
+    Make a single prediction from a raw record (e.g. ChurnGuard CSV row).
+    Keys are normalized (lowercase, underscores); churn and ID columns are dropped.
+    """
+    if model is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Model not loaded"
+        )
+    try:
+        input_dict = _input_dict_to_features(record)
+        # Ensure all numeric columns are float for MLflow compatibility
+        for k, v in input_dict.items():
+            if isinstance(v, (int, float)):
+                input_dict[k] = float(v)
+        df = pd.DataFrame([input_dict])
+        
+        prediction = model.predict(df)
+        
+        # Try to get probability if available
+        churn_prob = 0.5  # default
+        if hasattr(model, 'predict_proba'):
+            prediction_proba = model.predict_proba(df)
+            churn_prob = float(prediction_proba[0][1])
+        elif hasattr(model, '_model_impl') and hasattr(model._model_impl, 'predict_proba'):
+            prediction_proba = model._model_impl.predict_proba(df)
+            churn_prob = float(prediction_proba[0][1])
+        else:
+            churn_prob = float(prediction[0])
+        
+        will_churn = bool(prediction[0])
+        
+        return PredictionOutput(
+            churn_probability=churn_prob,
+            will_churn=will_churn,
+            model_version=model_info.get("version", "unknown")
+        )
+    except Exception as e:
+        logger.error(f"Prediction from record error: {str(e)}")
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Prediction failed: {str(e)}"
+        )
+
+
 @app.post("/predict/batch", response_model=BatchPredictionOutput, tags=["Prediction"])
 async def predict_batch(input_data: BatchPredictionInput):
     """
-    Make batch predictions
-    
-    Expected input format:
-    {
-        "instances": [
-            [0.5, -1.2, 0.8, ..., 1.3],  # 20 features
-            [-0.5, 1.2, -0.8, ..., -1.3]  # 20 features
-        ]
-    }
+    Make batch churn predictions for multiple customers
     """
     if model is None:
         raise HTTPException(
@@ -254,35 +323,38 @@ async def predict_batch(input_data: BatchPredictionInput):
         )
     
     try:
-        # Validate feature counts
-        for i, instance in enumerate(input_data.instances):
-            if len(instance) != 20:
-                raise HTTPException(
-                    status_code=status.HTTP_400_BAD_REQUEST,
-                    detail=f"Instance {i}: Expected 20 features, got {len(instance)}"
-                )
-        
-        # Convert input to numpy array
-        input_array = np.array(input_data.instances)
+        # Convert all instances to feature dicts (ChurnGuard schema)
+        instances_list = [_input_dict_to_features(instance.dict()) for instance in input_data.instances]
+        # Ensure all numeric columns are float for MLflow compatibility
+        for inst in instances_list:
+            for k, v in inst.items():
+                if isinstance(v, (int, float)):
+                    inst[k] = float(v)
+        df = pd.DataFrame(instances_list)
         
         # Make predictions
-        predictions = model.predict(input_array)
+        predictions = model.predict(df)
+        
+        # Try to get probabilities if available
+        predictions_proba = None
+        if hasattr(model, 'predict_proba'):
+            predictions_proba = model.predict_proba(df)
+        elif hasattr(model, '_model_impl') and hasattr(model._model_impl, 'predict_proba'):
+            predictions_proba = model._model_impl.predict_proba(df)
         
         # Format output
         results = []
-        for pred in predictions:
-            if hasattr(pred, '__iter__') and not isinstance(pred, str):
-                churn_prob = float(pred[0]) if len(pred) > 0 else float(pred)
+        for i, pred in enumerate(predictions):
+            if predictions_proba is not None:
+                churn_prob = float(predictions_proba[i][1])  # Probability of class 1 (churn)
             else:
-                churn_prob = float(pred)
-            
-            # Ensure probability is between 0 and 1
-            churn_prob = max(0.0, min(1.0, churn_prob))
+                churn_prob = float(pred)  # Use prediction as confidence
+            will_churn = bool(pred)
             
             results.append(
                 PredictionOutput(
                     churn_probability=churn_prob,
-                    will_churn=churn_prob > 0.5,
+                    will_churn=will_churn,
                     model_version=model_info.get("version", "unknown")
                 )
             )

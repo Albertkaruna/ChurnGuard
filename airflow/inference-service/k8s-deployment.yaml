@@ -35,7 +35,7 @@ spec:
         - name: MODEL_NAME
           value: "churn-prediction-model"
         - name: MODEL_VERSION
-          value: "1"
+          value: "12"
         # Optionally use specific model stage instead of version
         # - name: MODEL_STAGE
         #   value: "Production"
