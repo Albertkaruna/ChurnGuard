@@ -50,7 +50,7 @@ with DAG(
         namespace='airflow',
         image='churnguard-trainer:latest',  # Your ML image
         get_logs=True,
-        on_finish_action='keep_pod',
+        on_finish_action='delete_pod',
         in_cluster=True,
         image_pull_policy='Never'
     )

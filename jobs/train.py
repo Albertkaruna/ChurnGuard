@@ -339,7 +339,7 @@ def train_model():
     logger.info(f"Starting ChurnGuard model training at {datetime.now()}")
     
     # Set MLflow configuration
-    mlflow_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://localhost:5000')
+    mlflow_uri = os.getenv('MLFLOW_TRACKING_URI', 'http://10.96.147.205:80') # For local testing - http://localhost:5000, for Airflow - http://mlflow-service-ip:80
     mlflow.set_tracking_uri(mlflow_uri)
     logger.info(f"MLflow tracking URI: {mlflow_uri}")
     
