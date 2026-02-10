@@ -7,6 +7,7 @@ import mlflow
 import pandas as pd
 from fastapi import Body, FastAPI, HTTPException, status
 from pydantic import BaseModel, Field
+from prometheus_fastapi_instrumentator import Instrumentator
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -167,6 +168,8 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# This single line handles the /metrics endpoint and standard metrics to comptable with prometheus
+Instrumentator().instrument(app).expose(app)
 
 @app.get("/", tags=["Health"])
 async def root():

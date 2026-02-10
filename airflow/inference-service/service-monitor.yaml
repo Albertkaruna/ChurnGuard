@@ -1,0 +1,15 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: churnguard-serving-service-monitor
+  namespace: default
+  labels:
+    release: kube-prometheus-stack # match the release name of your kube-prometheus-stack installation (kubectl get prometheus -n monitoring -o yaml)
+spec:
+  selector:
+    matchLabels:
+      app: churnguard-serving
+  endpoints:
+    - port: http
+      interval: 15s
+      path: /metrics
