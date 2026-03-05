@@ -56,3 +56,5 @@ docker build -t churnguard-serving . && kind load docker-image churnguard-servin
 
 echo Username: $(kubectl get secret --namespace mlflow mlflow-tracking -o jsonpath="{ .data.admin-user }" | base64 -d)
 echo Password: $(kubectl get secret --namespace mlflow mlflow-tracking -o jsonpath="{.data.admin-password }" | base64 -d)
+
+Referene mlops-commands-ref.md file for additional commands
