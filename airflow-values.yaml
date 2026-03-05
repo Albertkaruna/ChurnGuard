@@ -1,0 +1,93 @@
+airflow:
+  image:
+    tag: latest-python3.12
+
+postgresql:
+  image:
+    tag: latest
+
+webserverSecretKeySecretName: my-webserver-secret
+
+dags:
+  persistence:
+    enabled: false
+  gitSync:
+    enabled: false
+
+extraPipPackages:
+  - "apache-airflow-providers-cncf-kubernetes>=8.0.0"
+
+extraVolumes:
+  - name: dags-volume
+    hostPath:
+      path: /mnt/dags
+      type: DirectoryOrCreate
+
+extraVolumeMounts:
+  - name: dags-volume
+    mountPath: /opt/airflow/dags
+    readOnly: false
+
+dagProcessor:
+  enabled: true
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+apiServer:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+scheduler:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+workers:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+triggerer:
+  extraVolumes:
+    - name: dags-volume
+      hostPath:
+        path: /mnt/dags
+        type: DirectoryOrCreate
+  extraVolumeMounts:
+    - name: dags-volume
+      mountPath: /opt/airflow/dags
+      readOnly: false
+
+config:
+  core:
+    dags_folder: /opt/airflow/dags
+    load_examples: false
+  scheduler:
+    standalone_dag_processor: true
+    dag_dir_list_interval: 30
