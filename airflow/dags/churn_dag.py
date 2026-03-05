@@ -14,13 +14,6 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-# env_vars={
-#     'MLFLOW_TRACKING_URI': 'http://10.96.250.23:80',
-#     'MLFLOW_TRACKING_USERNAME': 'user',  # Add this
-#     'MLFLOW_TRACKING_PASSWORD': 'JWu4h4SK0BNW',  # Add this
-#     'MLFLOW_EXPERIMENT_NAME': 'churn-prediction',
-# }
-
 # Define the DAG
 with DAG(
     'ml_training_dag',

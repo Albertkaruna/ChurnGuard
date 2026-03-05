@@ -43,4 +43,16 @@ helm upgrade --install airflow apache-airflow/airflow --namespace airflow --crea
 
 # helm delete airflow --namespace airflow
 
-helm upgrade --install mlflow oci://registry-1.docker.io/bitnamicharts/mlflow --namespace mlflow --create-namespace --values mlflow-bitnami-values.yaml
+helm repo add community-charts https://community-charts.github.io/helm-charts
+helm repo update
+helm upgrade --install mlflow oci://registry-1.docker.io/bitnamicharts/mlflow --namespace mlflow --create-namespace --values mlflow-community-values.yaml --set global.security.allowInsecureImages=true
+
+helm repo add bitnami https://charts.bitnami.com/bitnami
+helm upgrade --install mlflow oci://registry-1.docker.io/bitnamicharts/mlflow --namespace mlflow --create-namespace --values mlflow-bitnami-values.yaml --set global.security.allowInsecureImages=true
+
+helm install kube-prometheus-stack oci://ghcr.io/prometheus-community/charts/kube-prometheus-stack -n monitoring
+
+docker build -t churnguard-serving . && kind load docker-image churnguard-serving . && kubectl rollout restart deployment/churnguard-serving
+
+echo Username: $(kubectl get secret --namespace mlflow mlflow-tracking -o jsonpath="{ .data.admin-user }" | base64 -d)
+echo Password: $(kubectl get secret --namespace mlflow mlflow-tracking -o jsonpath="{.data.admin-password }" | base64 -d)

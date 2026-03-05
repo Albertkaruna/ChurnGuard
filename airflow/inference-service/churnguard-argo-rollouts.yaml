@@ -1,0 +1,38 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Rollout
+metadata:
+  name: ml-model-rollout
+  namespace: default
+spec:
+  replicas: 5
+  strategy:
+    canary:
+      # The "Analysis" step is the magic.
+      # It queries your EXISTING Prometheus setup to decide if the rollout proceeds.
+      analysis:
+        templates:
+        - templateName: latency-check
+        startingStep: 2
+      steps:
+      - setWeight: 20  # 1. Send 20% traffic to new model
+      - pause: {duration: 1h} # 2. Wait 1 hour to gather metrics
+      - analysis:
+          templates:
+          - templateName: success-rate # 3. Check Prometheus: Is error rate < 1%?
+      - setWeight: 50
+      - pause: {duration: 10m}
+---
+
+apiVersion: argoproj.io/v1alpha1
+kind: AnalysisTemplate
+metadata:
+  name: latency-check
+spec:
+  metrics:
+  - name: p99-latency
+    provider:
+      prometheus:
+        address: http://prometheus-server.monitoring.svc.cluster.local:9090
+        query: |
+          histogram_quantile(0.99, sum(rate(http_request_duration_seconds_bucket{app="my-ml-app"}[1m])) by (le))
+    successCondition: result[0] < 0.5  # Pass if P99 latency is under 500ms
